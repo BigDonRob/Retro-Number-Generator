@@ -1,0 +1,685 @@
+<!DOCTYPE html>
+<html lang="en" data-mode="play">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RA Game Picker</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="Index.css">
+<script src="ra_games.js"></script>
+<script src="ra_games_dev.js"></script>
+</head>
+<body>
+<div class="container">
+
+  <!-- Narrow: mode + header + display + roll + type chips -->
+  <div class="narrow">
+
+    <div class="mode-strip">
+      <button class="mode-tab active" id="tab-play" onclick="setMode('play')">⭐ PLAYER</button>
+      <button class="mode-tab"        id="tab-dev"  onclick="setMode('dev')">💀 DEV</button>
+      <button class="mode-tab"        id="tab-jrdev" onclick="setMode('jrdev')">🌱 JR-DEV</button>
+    </div>
+
+    <div class="header">
+      <div class="header-eyebrow" id="eyebrow">◆ RetroAchievements ◆</div>
+      <h1 id="main-title">RANDOM<br>GAME SELECTOR</h1>
+      <p class="pool-line"><span id="pool-count">—</span> <span id="pool-label">games in pool</span></p>
+    </div>
+
+    <div id="status-area"></div>
+
+    <div class="display-panel" id="panel">
+      <div class="slot-hint" id="slot-hint">// selected game</div>
+      <div class="game-title" id="game-title">
+        <span style="color:var(--border);letter-spacing:.3em;font-size:.7em">_ _ _ _ _</span>
+      </div>
+      <div class="game-meta" id="game-meta">
+        <div class="meta-sys">
+          <span class="sys-dot" id="sys-dot"></span>
+          <span id="sys-name"></span>
+        </div>
+        <span class="meta-type" id="type-badge"></span>
+      </div>
+      <div id="link-area"></div>
+    </div>
+
+    <div class="action-row">
+      <button class="roll-btn" id="roll-btn" onclick="roll()">▶ ROLL THE DICE</button>
+      <div class="roll-count-box">
+        <div class="rc-label">rolls</div>
+        <div class="rc-value" id="roll-count">0</div>
+      </div>
+    </div>
+
+    <!-- Type filter (stays narrow/flat) -->
+    <div class="section-label">// entry type</div>
+    <div class="chip-row" id="type-chips"></div>
+
+  </div><!-- /narrow -->
+
+  <!-- Full-width: system columns -->
+  <div class="full-width">
+    <div class="section-label">
+      // systems
+      <div class="bulk-btns">
+        <button class="bulk-btn" onclick="setAllSys(true)">ALL</button>
+        <button class="bulk-btn" onclick="setAllSys(false)">NONE</button>
+      </div>
+    </div>
+    <div class="sys-columns" id="sys-columns"></div>
+  </div>
+
+  <!-- History (narrow) -->
+  <div class="narrow" id="hist-wrap" style="display:none">
+    <div class="section-label">// recent rolls</div>
+    <div id="history"></div>
+  </div>
+
+</div><!-- /container -->
+
+<script>
+/* ═══════════════════════════════════════════════════════════════════════════
+   🔊  SOUND & VFX VARIABLE SHEET
+   Fill any value with a URL (relative or https://) to activate.
+   Leave '' to stay silent. Volumes: 0.0–1.0
+═══════════════════════════════════════════════════════════════════════════ */
+const SFX = {
+  bgm_play:   '',       bgm_dev:    '',       bgm_volume: 0.35,
+  enter_play: '',       enter_dev:  '',
+  roll_play:  '',       roll_dev:   '',
+  all_on:     '',       all_off:    '',       pool_empty: '',
+  sfx_volume: 0.75,
+  types: {
+    'Retail':    { on: '', off: '' },
+    'Hack':      { on: '', off: '' },
+    'Homebrew':  { on: '', off: '' },
+    'Prototype': { on: '', off: '' },
+    'Demo':      { on: '', off: '' },
+    'Unlicensed':{ on: '', off: '' },
+    'Test Kit':  { on: '', off: '' },
+  },
+  systems: {
+    'PlayStation 2':          { on: '', off: '' },
+    'NES/Famicom':            { on: '', off: '' },
+    'SNES/Super Famicom':     { on: '', off: '' },
+    'Nintendo 64':            { on: '', off: '' },
+    'Game Boy':               { on: '', off: '' },
+    'Game Boy Color':         { on: '', off: '' },
+    'Game Boy Advance':       { on: '', off: '' },
+    'Genesis/Mega Drive':     { on: '', off: '' },
+    'PlayStation':            { on: '', off: '' },
+    'PlayStation Portable':   { on: '', off: '' },
+    'GameCube':               { on: '', off: '' },
+    'Nintendo DS':            { on: '', off: '' },
+    'Dreamcast':              { on: '', off: '' },
+    'Saturn':                 { on: '', off: '' },
+    'Arcade':                 { on: '', off: '' },
+    'PC Engine/TurboGrafx-16':{ on: '', off: '' },
+    'Master System':          { on: '', off: '' },
+    'Atari 2600':             { on: '', off: '' },
+    'Wii':                    { on: '', off: '' },
+    'MSX':                    { on: '', off: '' },
+  },
+  // Special mode-specific sounds
+  snes_play: 'PlayerSFX.mp3',  // SNES sound when Play mode is selected
+  browser_play: 'DevSFX.mp3', // Browser sound when Dev mode is selected
+  yahoo_play: 'Jr-DevSFX.mp3',  // Yahoo sound when Jr-Dev mode is selected
+};
+/* ══ END VARIABLE SHEET ═════════════════════════════════════════════════ */
+
+
+// ── System grouping definitions ──────────────────────────────────────────────
+// Any system name not listed here falls into the generated "Other" column.
+const SYSTEM_GROUPS = [
+  { label: 'Nintendo', systems: [
+    'NES/Famicom', 'Famicom Disk System',
+    'SNES/Super Famicom', 'Nintendo 64', 'GameCube', 'Wii', 'Wii U',
+    'Virtual Boy', 'Pokemon Mini',
+    'Game Boy', 'Game Boy Color', 'Game Boy Advance',
+    'Nintendo DS', 'Nintendo DSi', 'Nintendo 3DS',
+  ]},
+  { label: 'PlayStation', systems: [
+    'PlayStation', 'PlayStation 2', 'PlayStation 3', 'PlayStation 4',
+    'PlayStation Portable', 'PlayStation Vita',
+  ]},
+  { label: 'Sega', systems: [
+    'SG-1000', 'Master System', 'Genesis/Mega Drive',
+    'Sega CD', '32X', 'Game Gear', 'Saturn', 'Dreamcast',
+  ]},
+  { label: 'Atari', systems: [
+    'Atari 2600', 'Atari 7800', 'Atari Lynx', 'Atari Jaguar', 'Atari Jaguar CD',
+  ]},
+  { label: 'Computer', systems: [
+    'Apple II', 'MSX', 'PC-8000/8800', 'Amstrad CPC',
+    'PC Engine/TurboGrafx-16', 'PC Engine CD/TurboGrafx-CD', 'PC-FX',
+  ]},
+  // Everything else is automatically collected into "Other"
+];
+
+
+// ── Audio ────────────────────────────────────────────────────────────────────
+const _sfxCache = new Map();
+let _bgmEl = null, _bgmReady = false;
+
+function playSound(url, vol) {
+  if (!url) return;
+  let a = _sfxCache.get(url);
+  if (!a) { a = new Audio(url); _sfxCache.set(url, a); }
+  a.volume = vol ?? SFX.sfx_volume; a.currentTime = 0; a.play().catch(() => {});
+}
+function setBGM(url) {
+  if (_bgmEl) { _bgmEl.pause(); _bgmEl = null; }
+  if (!url) return;
+  _bgmEl = Object.assign(new Audio(url), { loop: true, volume: SFX.bgm_volume });
+  if (_bgmReady) _bgmEl.play().catch(() => {});
+}
+function unlockAudio() {
+  if (_bgmReady) return;
+  _bgmReady = true;
+  if (_bgmEl) _bgmEl.play().catch(() => {});
+}
+
+// ── VFX ──────────────────────────────────────────────────────────────────────
+function modeFlash(type) {
+  const el = Object.assign(document.createElement('div'), { className: `mode-flash ${type}` });
+  document.body.appendChild(el);
+  el.addEventListener('animationend', () => el.remove());
+}
+
+// ── Colors ───────────────────────────────────────────────────────────────────
+const SYS_COLORS = [
+  '#ff6b6b','#4de8ff','#a78bfa','#fb923c','#4ade80','#f472b6',
+  '#facc15','#38bdf8','#34d399','#f87171','#818cf8','#fb7185',
+  '#a3e635','#22d3ee','#c084fc','#e879f9','#fbbf24','#6ee7b7',
+];
+const sysColorFor = (() => {
+  const m = new Map();
+  return id => { if (!m.has(id)) m.set(id, SYS_COLORS[m.size % SYS_COLORS.length]); return m.get(id); };
+})();
+
+const TYPE_COLORS = {
+  'Retail': '#a3e635', 'Hack': '#f472b6', 'Homebrew': '#38bdf8',
+  'Prototype': '#fb923c', 'Demo': '#facc15', 'Unlicensed': '#e879f9', 'Test Kit': '#6ee7b7',
+};
+const typeColor = t => TYPE_COLORS[t] || '#888';
+
+// ── Helpers ──────────────────────────────────────────────────────────────────
+const lsGet = k => { try { return JSON.parse(localStorage.getItem(k)); } catch { return null; } };
+const lsSet = (k,v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} };
+const trunc = (s,n) => s&&s.length>n ? s.slice(0,n-1)+'…' : (s||'');
+const esc   = s => (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+
+const LS = {
+  MODE: 'ra_mode_v2',
+  EXCL_PSYS: 'ra_excl_psys_v2', EXCL_DSYS: 'ra_excl_dsys_v2', EXCL_JRSYS: 'ra_excl_jrsys_v2',
+  EXCL_PTYP: 'ra_excl_ptyp_v2', EXCL_DTYP: 'ra_excl_dtyp_v2', EXCL_JRTYP: 'ra_excl_jrtyp_v2',
+  ROLLS_PLAY: 'ra_rolls_play_v2', ROLLS_DEV: 'ra_rolls_dev_v2', ROLLS_JRDEV: 'ra_rolls_jrdev_v2',
+  HIST_PLAY: 'ra_hist_play_v2', HIST_DEV: 'ra_hist_dev_v2', HIST_JRDEV: 'ra_hist_jrdev_v2',
+};
+
+// ── Data ─────────────────────────────────────────────────────────────────────
+const DATA = { play: window.RA_GAMES || [], dev: window.RA_GAMES_DEV || [], jrdev: window.RA_GAMES_DEV || [] };
+
+// ── State ────────────────────────────────────────────────────────────────────
+let mode      = lsGet(LS.MODE) || 'play';
+const exclSys  = { play: new Set(lsGet(LS.EXCL_PSYS)||[]), dev: new Set(lsGet(LS.EXCL_DSYS)||[]), jrdev: new Set(lsGet(LS.EXCL_JRSYS)||[]) };
+const exclType = { play: new Set(lsGet(LS.EXCL_PTYP)||[]), dev: new Set(lsGet(LS.EXCL_DTYP)||[]), jrdev: new Set(lsGet(LS.EXCL_JRTYP)||[]) };
+const rollCounts = { play: lsGet(LS.ROLLS_PLAY)||0, dev: lsGet(LS.ROLLS_DEV)||0, jrdev: lsGet(LS.ROLLS_JRDEV)||0 };
+const hist     = { play: lsGet(LS.HIST_PLAY)||[], dev: lsGet(LS.HIST_DEV)||[], jrdev: lsGet(LS.HIST_JRDEV)||[] };
+let rolling   = false;
+let pool      = [];
+
+// ── Derived ──────────────────────────────────────────────────────────────────
+function buildSysMap(games) {
+  const m = new Map();
+  for (const g of games) {
+    if (!m.has(g.system)) m.set(g.system, { name: g.system, id: g.systemId, count: 0 });
+    m.get(g.system).count++;
+  }
+  return m;
+}
+
+function buildTypeMap(games) {
+  const ORDER = ['Retail','Hack','Homebrew','Prototype','Demo','Unlicensed','Test Kit'];
+  const m = new Map();
+  for (const g of games) { const t = g.type||'Retail'; m.set(t, (m.get(t)||0)+1); }
+  return [...m.entries()]
+    .sort((a,b) => { const ia=ORDER.indexOf(a[0]), ib=ORDER.indexOf(b[0]); return (ia<0?99:ia)-(ib<0?99:ib); })
+    .map(([name,count]) => ({ name, count }));
+}
+
+function curGames()    { return DATA[mode]; }
+function curExclSys()  { return exclSys[mode]; }
+function curExclType() { return exclType[mode]; }
+function saveExclSys()  { 
+  if (mode === 'play') lsSet(LS.EXCL_PSYS, [...curExclSys()]);
+  else if (mode === 'dev') lsSet(LS.EXCL_DSYS, [...curExclSys()]);
+  else lsSet(LS.EXCL_JRSYS, [...curExclSys()]);
+}
+function saveExclType() { 
+  if (mode === 'play') lsSet(LS.EXCL_PTYP, [...curExclType()]);
+  else if (mode === 'dev') lsSet(LS.EXCL_DTYP, [...curExclType()]);
+  else lsSet(LS.EXCL_JRTYP, [...curExclType()]);
+}
+function curHist() { return hist[mode] || []; }
+function curRollCount() { return rollCounts[mode] || 0; }
+function saveHist() {
+  if (mode === 'play') lsSet(LS.HIST_PLAY, hist.play);
+  else if (mode === 'dev') lsSet(LS.HIST_DEV, hist.dev);
+  else lsSet(LS.HIST_JRDEV, hist.jrdev);
+}
+function saveRollCount() {
+  if (mode === 'play') lsSet(LS.ROLLS_PLAY, rollCounts.play);
+  else if (mode === 'dev') lsSet(LS.ROLLS_DEV, rollCounts.dev);
+  else lsSet(LS.ROLLS_JRDEV, rollCounts.jrdev);
+}
+
+// ── Pool ─────────────────────────────────────────────────────────────────────
+function buildPool() {
+  const eS = curExclSys(), eT = curExclType();
+  pool = curGames().filter(g => !eS.has(g.system) && !eT.has(g.type||'Retail'));
+  document.getElementById('pool-count').textContent = pool.length.toLocaleString();
+  document.getElementById('roll-btn').disabled = !pool.length;
+  if (!pool.length) playSound(SFX.pool_empty);
+}
+
+// ── System columns ────────────────────────────────────────────────────────────
+function renderSysColumns() {
+  const container = document.getElementById('sys-columns');
+  container.innerHTML = '';
+
+  const sysMap = buildSysMap(curGames());
+  const eS     = curExclSys();
+
+  // Build a set of which systems are claimed by a named group
+  const claimed = new Set(SYSTEM_GROUPS.flatMap(g => g.systems));
+
+  // Collect "Other" systems: present in data but not in any named group
+  const otherSystems = [...sysMap.values()]
+    .filter(s => !claimed.has(s.name))
+    .sort((a,b) => b.count - a.count);
+
+  // Build the final column list — only include groups that have ≥1 game in current data
+  let columns = SYSTEM_GROUPS
+    .map(grp => ({
+      label:   grp.label,
+      systems: grp.systems
+        .filter(name => sysMap.has(name))
+        .map(name   => sysMap.get(name)),
+    }))
+    .filter(col => col.systems.length > 0);
+
+  // Apply Jr-Dev mode restrictions
+  if (mode === 'jrdev') {
+    // Remove Atari, Computer, and Other columns completely
+    columns = columns.filter(col => !['Atari', 'Computer', 'Other'].includes(col.label));
+    
+    // For Nintendo column, remove GameCube, Wii, and Virtual Boy
+    const nintendoCol = columns.find(col => col.label === 'Nintendo');
+    if (nintendoCol) {
+      nintendoCol.systems = nintendoCol.systems.filter(sys => 
+        !['GameCube', 'Wii', 'Virtual Boy'].includes(sys.name)
+      );
+      // Remove Nintendo column if it's empty after filtering
+      if (nintendoCol.systems.length === 0) {
+        columns = columns.filter(col => col.label !== 'Nintendo');
+      }
+    }
+    
+    // For Sega column, keep only Genesis/Mega Drive, Game Gear, and Master System
+    const segaCol = columns.find(col => col.label === 'Sega');
+    if (segaCol) {
+      const allowedSegaSystems = ['Genesis/Mega Drive', 'Game Gear', 'Master System'];
+      segaCol.systems = segaCol.systems.filter(sys => 
+        allowedSegaSystems.includes(sys.name)
+      );
+      // Remove Sega column if it's empty after filtering
+      if (segaCol.systems.length === 0) {
+        columns = columns.filter(col => col.label !== 'Sega');
+      }
+    }
+  }
+
+  if (otherSystems.length > 0 && mode !== 'jrdev') {
+    columns.push({ label: 'Other', systems: otherSystems });
+  }
+
+  // Render each column
+  for (const col of columns) {
+    const colEl = document.createElement('div');
+    colEl.className = 'sys-col';
+
+    const header = document.createElement('div');
+    header.className = 'sys-col-header';
+    
+    const title = document.createElement('div');
+    title.className = 'sys-col-title';
+    title.textContent = col.label;
+    header.appendChild(title);
+    
+    const toggle = document.createElement('button');
+    toggle.className = 'sys-col-toggle';
+    toggle.textContent = 'ALL';
+    
+    // Check if all systems in this column are on
+    const allOn = col.systems.every(sys => !eS.has(sys.name));
+    toggle.classList.toggle('all-on', allOn);
+    
+    toggle.addEventListener('click', () => {
+      const currentlyAllOn = col.systems.every(sys => !eS.has(sys.name));
+      col.systems.forEach(sys => {
+        currentlyAllOn ? eS.add(sys.name) : eS.delete(sys.name);
+      });
+      toggle.classList.toggle('all-on', !currentlyAllOn);
+      playSound(currentlyAllOn ? SFX.all_off : SFX.all_on);
+      saveExclSys();
+      renderSysColumns();
+      buildPool();
+    });
+    
+    header.appendChild(toggle);
+    colEl.appendChild(header);
+
+    for (const sys of col.systems) {
+      const on  = !eS.has(sys.name);
+      const col2 = sysColorFor(sys.id);
+
+      const chip = document.createElement('div');
+      chip.className = 'sys-row-chip' + (on ? ' on' : '');
+      chip.innerHTML =
+        `<span class="src-dot" style="background:${col2}"></span>` +
+        `<span class="src-name">${esc(sys.name)}</span>` +
+        `<span class="src-count">${sys.count}</span>`;
+
+      chip.addEventListener('click', () => {
+        const wasOn = !eS.has(sys.name);
+        wasOn ? eS.add(sys.name) : eS.delete(sys.name);
+        const nowOn = !eS.has(sys.name);
+        chip.classList.toggle('on', nowOn);
+        const e = SFX.systems[sys.name];
+        if (e) playSound(nowOn ? e.on : e.off);
+        saveExclSys();
+        buildPool();
+      });
+
+      colEl.appendChild(chip);
+    }
+
+    container.appendChild(colEl);
+  }
+}
+
+function setAllSys(on) {
+  unlockAudio();
+  const eS  = curExclSys();
+  const sys = buildSysMap(curGames());
+  on ? eS.clear() : sys.forEach(s => eS.add(s.name));
+  saveExclSys();
+  playSound(on ? SFX.all_on : SFX.all_off);
+  renderSysColumns();
+  buildPool();
+}
+
+// ── Type chips ────────────────────────────────────────────────────────────────
+function renderTypeChips() {
+  const row  = document.getElementById('type-chips');
+  const eT   = curExclType();
+  row.innerHTML = '';
+  
+  // For Jr-Dev mode, only show Retail type and exclude all others
+  if (mode === 'jrdev') {
+    // Clear all non-retail types from exclusions
+    const typeMap = buildTypeMap(curGames());
+    for (const { name } of typeMap) {
+      if (name !== 'Retail') {
+        eT.add(name);
+      } else {
+        eT.delete(name);
+      }
+    }
+    saveExclType();
+    
+    // Only show Retail chip if it exists
+    const retailType = typeMap.find(t => t.name === 'Retail');
+    if (retailType) {
+      const col = typeColor('Retail');
+      const el  = document.createElement('div');
+      el.className = 'chip type-chip on';
+      el.style.borderLeftColor = col;
+      el.innerHTML = `<span class="cdot" style="background:${col}"></span>Retail<span class="ccount">&thinsp;${retailType.count}</span>`;
+      el.style.pointerEvents = 'none'; // Make it non-clickable
+      el.style.opacity = '0.8'; // Visual indicator it's locked
+      row.appendChild(el);
+    }
+    return;
+  }
+  
+  // Normal behavior for Play and Dev modes
+  for (const { name, count } of buildTypeMap(curGames())) {
+    const on  = !eT.has(name);
+    const col = typeColor(name);
+    const el  = document.createElement('div');
+    el.className = 'chip type-chip' + (on ? ' on' : '');
+    el.style.borderLeftColor = on ? col : '';
+    el.innerHTML = `<span class="cdot" style="background:${col}"></span>${esc(name)}<span class="ccount">&thinsp;${count}</span>`;
+    el.addEventListener('click', () => {
+      const wasOn = !eT.has(name);
+      wasOn ? eT.add(name) : eT.delete(name);
+      const nowOn = !eT.has(name);
+      el.classList.toggle('on', nowOn);
+      el.style.borderLeftColor = nowOn ? col : '';
+      const e = SFX.types[name]; if (e) playSound(nowOn ? e.on : e.off);
+      saveExclType(); buildPool();
+    });
+    row.appendChild(el);
+  }
+}
+
+// ── Mode switch ───────────────────────────────────────────────────────────────
+const MODE_COPY = {
+  play: { title:'RANDOM<br>GAME SELECTOR', hint:'// selected game',  pool:'games in pool',         roll:'▶ ROLL THE DICE',   again:'▶ ROLL AGAIN',    eyebrow:'◆ RetroAchievements ◆' },
+  dev:  { title:'DEV GAME<br>PICKER',      hint:'// unclaimed game', pool:'unset games available', roll:'▶ CLAIM THIS GAME', again:'▶ CLAIM ANOTHER', eyebrow:'💀 RetroAchievements Dev 💀' },
+  jrdev: { title:'JR-DEV GAME<br>PICKER',  hint:'// unclaimed game', pool:'unset games available', roll:'▶ CLAIM THIS GAME', again:'▶ CLAIM ANOTHER', eyebrow:'🌱 RetroAchievements Jr-Dev 🌱' },
+};
+
+function setMode(m) {
+  if (m === mode) return;
+  unlockAudio(); mode = m; lsSet(LS.MODE, mode);
+  modeFlash(mode);
+  
+  // Play mode-specific sounds
+  if (mode === 'play') {
+    playSound(SFX.enter_play);
+    setBGM(SFX.bgm_play);
+    playSound(SFX.snes_play); // SNES sound for Play mode
+  } else if (mode === 'dev') {
+    playSound(SFX.enter_dev);
+    setBGM(SFX.bgm_dev);
+    playSound(SFX.browser_play); // Browser sound for Dev mode
+  } else if (mode === 'jrdev') {
+    playSound(SFX.enter_dev);
+    setBGM(SFX.bgm_dev);
+    playSound(SFX.yahoo_play); // Yahoo sound for Jr-Dev mode
+  }
+  applyMode();
+}
+
+function applyMode() {
+  document.documentElement.dataset.mode = mode;
+  const c = MODE_COPY[mode];
+  document.getElementById('main-title').innerHTML = c.title;
+  document.getElementById('slot-hint').textContent = c.hint;
+  document.getElementById('pool-label').textContent = c.pool;
+  document.getElementById('roll-btn').textContent = c.roll;
+  document.getElementById('eyebrow').textContent = c.eyebrow;
+  
+  // Update roll count display immediately when switching modes
+  document.getElementById('roll-count').textContent = curRollCount();
+  
+  let title = 'RA Game Picker';
+  if (mode === 'dev') title = 'RA Dev Picker';
+  else if (mode === 'jrdev') title = 'RA Jr-Dev Picker';
+  document.title = title;
+  
+  document.getElementById('tab-play').classList.toggle('active', mode==='play');
+  document.getElementById('tab-dev').classList.toggle('active', mode==='dev');
+  document.getElementById('tab-jrdev').classList.toggle('active', mode==='jrdev');
+  document.getElementById('game-title').innerHTML =
+    `<span style="color:var(--border);letter-spacing:.3em;font-size:.7em">_ _ _ _ _</span>`;
+  document.getElementById('game-meta').classList.remove('show');
+  document.getElementById('link-area').innerHTML = '';
+  
+  // Apply Jr-Dev mode automatic exclusions
+  if (mode === 'jrdev') {
+    applyJrDevRestrictions();
+  }
+  
+  updateStatusArea();
+  renderTypeChips();
+  renderSysColumns();
+  buildPool();
+  renderHistory();
+}
+
+function applyJrDevRestrictions() {
+  const eS = curExclSys();
+  const sysMap = buildSysMap(curGames());
+  
+  // Check if this is the first time entering Jr-Dev (no saved exclusions)
+  const isFirstTime = eS.size === 0;
+  
+  // Only apply default restrictions on first time
+  if (!isFirstTime) {
+    return; // User has saved selections, respect them
+  }
+  
+  // Systems to exclude in Jr-Dev mode
+  const excludedSystems = [
+    'GameCube', 'Wii', 'Virtual Boy',  // Nintendo exclusions
+    'SG-1000', 'Sega CD', '32X', 'Saturn', 'Dreamcast',  // Sega exclusions
+    'Atari 2600', 'Atari 7800', 'Atari Lynx', 'Atari Jaguar', 'Atari Jaguar CD',  // Atari systems
+    'Apple II', 'MSX', 'PC-8000/8800', 'Amstrad CPC',  // Computer systems
+    'PC Engine/TurboGrafx-16', 'PC Engine CD/TurboGrafx-CD', 'PC-FX',  // Computer systems
+    'Pokemon Mini', 'Wii U', 'Nintendo 3DS'  // Other Nintendo systems (removed Famicom Disk System and Nintendo DSi)
+  ];
+  
+  // Add excluded systems to exclusion set
+  for (const sysName of excludedSystems) {
+    if (sysMap.has(sysName)) {
+      eS.add(sysName);
+    }
+  }
+  
+  // Ensure allowed systems are not excluded
+  const allowedSystems = [
+    'NES/Famicom', 'SNES/Super Famicom', 'Nintendo 64',  // Core Nintendo
+    'Game Boy', 'Game Boy Color', 'Game Boy Advance', 'Nintendo DS', 'Nintendo DSi',  // Handhelds
+    'Genesis/Mega Drive', 'Game Gear', 'Master System',  // Core Sega
+    'PlayStation', 'PlayStation 2', 'PlayStation 3', 'PlayStation 4',  // PlayStation
+    'PlayStation Portable', 'PlayStation Vita',  // PlayStation handhelds
+    'Famicom Disk System'  // Additional Nintendo system
+  ];
+  
+  for (const sysName of allowedSystems) {
+    eS.delete(sysName);
+  }
+  
+  saveExclSys();
+}
+
+function updateStatusArea() {
+  document.getElementById('status-area').innerHTML = !curGames().length
+    ? `<div class="status-chip">${mode==='play'?'ra_games.js':'ra_games_dev.js'} not loaded</div>` : '';
+}
+
+// ── Roll ──────────────────────────────────────────────────────────────────────
+function roll() {
+  if (rolling || !pool.length) return;
+  rolling = true; unlockAudio();
+  const titleEl=document.getElementById('game-title'), metaEl=document.getElementById('game-meta'),
+        dotEl=document.getElementById('sys-dot'),      sysEl=document.getElementById('sys-name'),
+        typEl=document.getElementById('type-badge'),   linkEl=document.getElementById('link-area'),
+        panel=document.getElementById('panel'),        btn=document.getElementById('roll-btn');
+  btn.disabled=true; btn.textContent='⏳ ROLLING...';
+  titleEl.className='game-title cycling';
+  metaEl.classList.remove('show'); linkEl.innerHTML=''; panel.classList.add('rolling');
+  let t=0;
+  const iv=setInterval(()=>{
+    titleEl.textContent=trunc(pool[Math.floor(Math.random()*pool.length)].title,40);
+    if(++t>=20){
+      clearInterval(iv);
+      const g=pool[Math.floor(Math.random()*pool.length)], sc=sysColorFor(g.systemId), tc=typeColor(g.type||'Retail');
+      titleEl.textContent=g.title; titleEl.className='game-title';
+      dotEl.style.background=sc; sysEl.textContent=g.system; sysEl.style.color=sc;
+      typEl.textContent=g.type||'Retail'; typEl.style.color=tc; typEl.style.borderColor=tc;
+      typEl.style.display=(g.type&&g.type!=='Retail')?'':'none';
+      metaEl.classList.add('show');
+      linkEl.innerHTML=`<a class="game-link" href="https://retroachievements.org/game/${g.id}" target="_blank" rel="noopener">↗ retroachievements.org/game/${g.id}</a>`;
+      playSound(mode==='play'?SFX.roll_play:SFX.roll_dev);
+      rollCounts[mode]++; saveRollCount();
+      document.getElementById('roll-count').textContent=curRollCount();
+      curHist().unshift({id:g.id,title:g.title,system:g.system,systemId:g.systemId,type:g.type||'Retail',mode});
+      if(curHist().length>12)curHist().pop(); saveHist(); renderHistory();
+      btn.disabled=false; btn.textContent=MODE_COPY[mode].again;
+      panel.classList.remove('rolling'); rolling=false;
+    }
+  },60);
+}
+
+// ── History ───────────────────────────────────────────────────────────────────
+function renderHistory() {
+  const wrap=document.getElementById('hist-wrap'), el=document.getElementById('history');
+  const currentHist = curHist();
+  if(!currentHist.length){wrap.style.display='none';return;}
+  wrap.style.display='block';
+  el.innerHTML=currentHist.map(h=>{
+    const sc=sysColorFor(h.systemId||0), tc=typeColor(h.type||'Retail');
+    const typeTag=(h.type&&h.type!=='Retail')?`<span class="hist-type" style="color:${tc}">${esc(h.type)}</span>`:'';
+    const modeTag=h.mode==='dev'?`<span class="hist-type" style="color:var(--A);opacity:.55">DEV</span>`:h.mode==='jrdev'?`<span class="hist-type" style="color:var(--A);opacity:.55">JR-DEV</span>`:'';
+    return `<a class="hist-item" href="https://retroachievements.org/game/${h.id}" target="_blank" rel="noopener">
+      <span class="hist-title">${esc(h.title)}</span>
+      <span class="hist-sys" style="color:${sc}">${esc(h.system)}</span>
+      ${typeTag}${modeTag}
+      <span class="hist-id">#${h.id}</span>
+    </a>`;
+  }).join('');
+}
+
+// ── Init ──────────────────────────────────────────────────────────────────────
+for(const m of['play','dev','jrdev']){
+  const g=DATA[m]; if(!g.length)continue;
+  const sn=new Set(g.map(x=>x.system)), tn=new Set(g.map(x=>x.type||'Retail'));
+  for(const s of exclSys[m]) if(!sn.has(s))exclSys[m].delete(s);
+  for(const t of exclType[m])if(!tn.has(t))exclType[m].delete(t);
+}
+document.getElementById('roll-count').textContent=curRollCount();
+setBGM(mode==='play'?SFX.bgm_play:SFX.bgm_dev);
+applyMode();
+renderHistory();
+
+// ── Reset functionality ──────────────────────────────────────────────────────
+// Check for reset parameter in URL
+const urlParams = new URLSearchParams(window.location.search);
+if (urlParams.has('reset')) {
+  // Clear all roll counts
+  rollCounts.play = 0;
+  rollCounts.dev = 0;
+  rollCounts.jrdev = 0;
+  saveRollCount();
+  
+  // Clear URL parameter to prevent infinite reload loops
+  window.history.replaceState({}, '', window.location.pathname);
+  
+  // Reload page to apply reset
+  location.reload();
+}
+
+document.addEventListener('keydown',e=>{
+  if((e.key==='Enter'||e.key===' ')&&!rolling&&document.activeElement.tagName!=='BUTTON')
+    {e.preventDefault();roll();}
+});
+</script>
+</body>
+</html>

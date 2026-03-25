@@ -1,0 +1,322 @@
+/* ── Theme ─────────────────────────────────────────────────────────────────── */
+:root {
+  --bg:      #0d0d0d;  --surface: #141414;  --panel: #1a1a1a;
+  --text:    #e8e8e8;  --sub:     #666;
+  --border:  #252525;  --bhi:     #363636;
+}
+[data-mode="play"] {
+  --A: #f5c842;  --A2: #00e5cc;  --Adim: #9a7c1a;  --A2dim: #007a6e;
+  --glow: rgba(245,200,66,.28);  --glow2: rgba(0,229,204,.28);
+  --btn: #f5c842;  --btn-h: #ffd84a;  --btn-sh: #7a6010;  --btn-txt: #000;
+}
+[data-mode="dev"] {
+  --bg: #0a0505;  --panel: #160808;  --surface: #110404;
+  --border: #2a1010;  --bhi: #3f1515;
+  --A: #dd2222;  --A2: #9933dd;  --Adim: #771111;  --A2dim: #551188;
+  --glow: rgba(220,30,30,.3);  --glow2: rgba(150,30,220,.2);
+  --btn: #cc1a1a;  --btn-h: #ee2222;  --btn-sh: #550000;  --btn-txt: #fff;
+}
+[data-mode="jrdev"] {
+  --bg: #050a0a;  --panel: #081610;  --surface: #041108;
+  --border: #102a1a;  --bhi: #153f2b;
+  --A: #22dd55;  --A2: #00e5cc;  --Adim: #117733;  --A2dim: #007a6e;
+  --glow: rgba(34,221,85,.3);  --glow2: rgba(0,229,204,.2);
+  --btn: #1acc44;  --btn-h: #22dd55;  --btn-sh: #0a6622;  --btn-txt: #fff;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+  background: var(--bg); color: var(--text);
+  font-family: 'Share Tech Mono', monospace;
+  min-height: 100vh;
+  display: flex; flex-direction: column; align-items: center;
+  padding: 2rem 1.5rem 3rem;
+  position: relative; transition: background .4s;
+}
+body::before { /* scanlines */
+  content: ''; position: fixed; inset: 0; pointer-events: none; z-index: 100;
+  background: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,0,0,.07) 2px, rgba(0,0,0,.07) 4px);
+}
+body::after { /* vignette */
+  content: ''; position: fixed; inset: 0; pointer-events: none; z-index: 99;
+  background: radial-gradient(ellipse at center, transparent 50%, rgba(0,0,0,.65) 100%);
+}
+
+/* ── Layout ─────────────────────────────────────────────────────────────────── */
+/* Full-width outer container, narrow inner wrapper for non-filter content */
+.container {
+  width: 100%; max-width: 1200px;
+  position: relative; z-index: 1;
+  display: flex; flex-direction: column; align-items: center;
+  gap: 0;
+}
+
+.narrow {
+  width: 100%; max-width: 560px;
+  display: flex; flex-direction: column;
+}
+
+.full-width {
+  width: 100%;
+}
+
+/* ── Mode strip ─────────────────────────────────────────────────────────────── */
+.mode-strip {
+  display: flex; gap: 2px; margin-bottom: 1.5rem;
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 3px; padding: 3px;
+}
+.mode-tab {
+  flex: 1; padding: .55rem 0;
+  font-family: 'Press Start 2P', monospace; font-size: .6rem; letter-spacing: .1em;
+  border: none; border-radius: 2px; cursor: pointer; transition: all .15s;
+  background: transparent; color: var(--sub);
+}
+.mode-tab.active { background: var(--A); color: var(--btn-txt); box-shadow: 0 0 14px var(--glow); }
+.mode-tab:not(.active):hover { color: var(--text); background: var(--border); }
+
+/* ── Header ─────────────────────────────────────────────────────────────────── */
+.header { text-align: center; margin-bottom: 1.8rem; }
+.header-eyebrow {
+  font-family: 'Press Start 2P', monospace;
+  font-size: .52rem; letter-spacing: .2em; opacity: .7; margin-bottom: .65rem;
+  color: var(--A); transition: color .4s;
+}
+h1 {
+  font-family: 'Press Start 2P', monospace;
+  font-size: clamp(.88rem, 3vw, 1.12rem);
+  color: var(--A2); letter-spacing: .05em; line-height: 1.7;
+  text-shadow: 0 0 22px var(--glow2); transition: color .4s, text-shadow .4s;
+}
+.pool-line { margin-top: .65rem; font-size: .63rem; color: var(--sub); letter-spacing: .14em; }
+.pool-line span { color: var(--text); }
+
+/* ── VFX ────────────────────────────────────────────────────────────────────── */
+.mode-flash {
+  position: fixed; inset: 0; z-index: 500; pointer-events: none;
+  animation: flash-out .7s ease forwards;
+}
+.mode-flash.play { background: rgba(245,200,66,.22); }
+.mode-flash.dev  { background: rgba(220,30,30,.3); }
+.mode-flash.jrdev { background: rgba(34,221,85,.25); }
+@keyframes flash-out { 0%{opacity:1} 100%{opacity:0} }
+[data-mode="dev"] .container::before {
+  content: ''; position: absolute; inset: -1px; pointer-events: none;
+  border: 1px solid rgba(200,20,20,.25); border-radius: 4px;
+  animation: pulse-border 3s ease-in-out infinite;
+}
+[data-mode="jrdev"] .container::before {
+  content: ''; position: absolute; inset: -1px; pointer-events: none;
+  border: 1px solid rgba(34,221,85,.25); border-radius: 4px;
+  animation: pulse-border 3s ease-in-out infinite;
+}
+@keyframes pulse-border { 0%,100%{opacity:.4} 50%{opacity:1} }
+
+/* ── Display panel ──────────────────────────────────────────────────────────── */
+.display-panel {
+  background: var(--panel); border: 1px solid var(--border);
+  border-radius: 3px; padding: 1.6rem 1.8rem 1.4rem; margin-bottom: 1rem;
+  position: relative; overflow: hidden; min-height: 9rem;
+  transition: background .4s, border-color .4s;
+}
+.display-panel::before {
+  content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px;
+  background: linear-gradient(90deg, transparent, var(--A2), transparent);
+  opacity: 0; transition: opacity .25s;
+}
+.display-panel.rolling::before { opacity: 1; }
+
+.slot-hint { font-size: .52rem; color: var(--sub); letter-spacing: .2em; text-transform: uppercase; margin-bottom: .6rem; }
+
+.game-title {
+  font-family: 'Press Start 2P', monospace;
+  font-size: clamp(.7rem, 2.4vw, .98rem); color: var(--A);
+  line-height: 1.7; word-break: break-word;
+  text-shadow: 0 0 16px var(--glow); min-height: 1.4em; transition: color .3s;
+}
+.game-title.cycling {
+  color: var(--A2); text-shadow: 0 0 12px var(--glow2);
+  animation: blink .09s infinite;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  font-size: clamp(.62rem, 1.9vw, .82rem);
+}
+@keyframes blink { 0%,100%{opacity:1} 50%{opacity:.5} }
+
+.game-meta {
+  margin-top: .55rem; display: flex; align-items: center; flex-wrap: wrap; gap: .5rem;
+  opacity: 0; transform: translateY(3px); transition: opacity .3s .08s, transform .3s .08s;
+}
+.game-meta.show { opacity: 1; transform: none; }
+.meta-sys { display: flex; align-items: center; gap: .35rem; font-size: .6rem; letter-spacing: .1em; }
+.sys-dot  { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+.meta-type {
+  font-size: .52rem; letter-spacing: .12em; text-transform: uppercase;
+  padding: .15rem .42rem; border-radius: 2px; border: 1px solid currentColor; opacity: .85;
+}
+.game-link {
+  display: inline-flex; align-items: center; gap: .5rem; margin-top: .9rem;
+  padding: .45rem .85rem; background: rgba(0,0,0,.2); border: 1px solid var(--A2dim);
+  border-radius: 2px; color: var(--A2); text-decoration: none;
+  font-size: .65rem; letter-spacing: .07em; transition: all .15s; animation: fadeUp .3s ease;
+}
+.game-link:hover { border-color: var(--A2); color: #fff; background: rgba(255,255,255,.06); }
+@keyframes fadeUp { from{opacity:0;transform:translateY(4px)} to{opacity:1;transform:none} }
+
+/* ── Action row ─────────────────────────────────────────────────────────────── */
+.action-row { display: flex; gap: 1px; margin-bottom: 1.4rem; }
+.roll-btn {
+  flex: 1; padding: 1rem 0;
+  font-family: 'Press Start 2P', monospace; font-size: .8rem; letter-spacing: .1em;
+  background: var(--btn); color: var(--btn-txt);
+  border: none; border-radius: 2px 0 0 2px; cursor: pointer;
+  transition: background .15s, box-shadow .15s, transform .1s;
+  position: relative; overflow: hidden;
+}
+.roll-btn::after {
+  content: ''; position: absolute; inset: 0;
+  background: linear-gradient(180deg, rgba(255,255,255,.15) 0%, transparent 60%);
+  pointer-events: none;
+}
+.roll-btn:hover:not(:disabled) { background: var(--btn-h); box-shadow: 0 0 22px var(--glow), 0 3px 0 var(--btn-sh); transform: translateY(-1px); }
+.roll-btn:active:not(:disabled) { transform: translateY(2px); box-shadow: none; }
+.roll-btn:disabled { opacity: .4; cursor: not-allowed; transform: none; box-shadow: none; }
+
+.roll-count-box {
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 0 2px 2px 0; padding: 0 1.1rem; gap: .2rem; min-width: 5.5rem;
+  transition: background .4s, border-color .4s;
+}
+.rc-label { font-size: .5rem; color: var(--sub); letter-spacing: .18em; text-transform: uppercase; }
+.rc-value { font-family: 'Press Start 2P', monospace; font-size: .9rem; color: var(--text); }
+
+/* ── Section label ──────────────────────────────────────────────────────────── */
+.section-label {
+  font-size: .52rem; color: var(--sub); letter-spacing: .2em; text-transform: uppercase;
+  margin-bottom: .6rem; display: flex; align-items: center; justify-content: space-between;
+}
+.bulk-btns { display: flex; gap: .3rem; }
+.bulk-btn {
+  background: transparent; border: 1px solid var(--bhi); color: var(--sub);
+  font-family: 'Share Tech Mono', monospace; font-size: .55rem; letter-spacing: .12em;
+  padding: .18rem .5rem; border-radius: 2px; cursor: pointer; transition: all .12s;
+}
+.bulk-btn:hover { border-color: var(--A2dim); color: var(--A2); }
+
+/* ── Type chips (flat row, unchanged) ───────────────────────────────────────── */
+.chip-row { display: flex; flex-wrap: wrap; gap: .3rem; margin-bottom: 1.4rem; }
+.chip {
+  display: inline-flex; align-items: center; gap: .3rem; padding: .28rem .6rem;
+  border-radius: 2px; border: 1px solid var(--border); cursor: pointer;
+  user-select: none; transition: all .12s; font-size: .58rem; letter-spacing: .06em;
+  color: var(--sub); background: var(--surface);
+}
+.chip .cdot  { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; opacity: .3; transition: opacity .12s; }
+.chip .ccount { font-size: .5rem; opacity: .5; }
+.chip.on { color: var(--text); border-color: var(--bhi); }
+.chip.on .cdot { opacity: 1; }
+.chip.type-chip.on { border-left-width: 3px; padding-left: .45rem; }
+.chip:hover { border-color: var(--bhi); color: var(--text); }
+
+/* ── System columns ─────────────────────────────────────────────────────────── */
+.sys-columns {
+  display: grid;
+  /* each column min 160px, grows to fill — wraps automatically */
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 1.2rem 0.8rem;
+  margin-bottom: 1.5rem;
+  width: 100%;
+}
+
+.sys-col-header {
+  font-family: 'Press Start 2P', monospace;
+  font-size: .52rem; letter-spacing: .14em; text-transform: uppercase;
+  color: var(--A); opacity: .75;
+  padding: .3rem .5rem;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: .35rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.sys-col-title {
+  flex: 1;
+}
+
+.sys-col-toggle {
+  background: transparent;
+  border: 1px solid var(--bhi);
+  color: var(--sub);
+  font-family: 'Share Tech Mono', monospace;
+  font-size: .45rem;
+  letter-spacing: .08em;
+  padding: .12rem .35rem;
+  border-radius: 2px;
+  cursor: pointer;
+  transition: all .12s;
+  flex-shrink: 0;
+}
+.sys-col-toggle:hover {
+  border-color: var(--A2dim);
+  color: var(--A2);
+}
+.sys-col-toggle.all-on {
+  background: var(--surface);
+  border-color: var(--A2dim);
+  color: var(--A2);
+}
+
+/* Each chip is a full-width row within its column */
+.sys-row-chip {
+  display: flex; align-items: center;
+  width: 100%; padding: .45rem .6rem;
+  gap: .5rem;
+  border: 1px solid transparent;
+  border-radius: 3px;
+  cursor: pointer; user-select: none;
+  transition: background .1s, border-color .1s, color .1s;
+  color: var(--sub); background: transparent;
+  font-size: .65rem; letter-spacing: .05em;
+  min-height: 2.2rem;
+}
+.sys-row-chip:hover { background: var(--surface); border-color: var(--border); color: var(--text); }
+
+.sys-row-chip.on {
+  background: var(--surface); border-color: var(--border);
+  color: var(--text);
+}
+.sys-row-chip.on .src-dot { opacity: 1; }
+
+.src-dot {
+  width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; opacity: .25;
+  transition: opacity .12s;
+}
+.src-name {
+  flex: 1;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  font-size: .65rem;
+}
+.src-count {
+  font-size: .55rem; color: var(--sub); opacity: .55; flex-shrink: 0;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── History ────────────────────────────────────────────────────────────────── */
+.hist-item {
+  display: flex; align-items: center; gap: .8rem; padding: .38rem .7rem; margin-bottom: .28rem;
+  border: 1px solid var(--border); border-radius: 2px; text-decoration: none; transition: border-color .12s;
+}
+.hist-item:hover { border-color: var(--bhi); }
+.hist-title { flex: 1; font-size: .63rem; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.hist-sys   { font-size: .55rem; white-space: nowrap; flex-shrink: 0; }
+.hist-type  { font-size: .48rem; opacity: .55; letter-spacing: .08em; flex-shrink: 0; }
+.hist-id    { font-size: .5rem; color: var(--sub); opacity: .5; flex-shrink: 0; }
+
+/* ── Status ─────────────────────────────────────────────────────────────────── */
+.status-chip {
+  display: inline-block; font-size: .52rem; letter-spacing: .1em;
+  padding: .2rem .55rem; border-radius: 2px; margin-bottom: .9rem;
+  border: 1px solid #4a3a1a; color: #facc15;
+}
